@@ -1,3 +1,4 @@
 test_hostname_file.exe
+test_plugin_load.exe
 *.obj
 *.log

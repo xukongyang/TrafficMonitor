@@ -238,9 +238,13 @@
   <ItemGroup>
     <ClInclude Include="..\include\PluginInterface.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="HostNameFile.h" />
+    <ClInclude Include="HostNameItem.h" />
     <ClInclude Include="PluginHostName.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="HostNameFile.cpp" />
+    <ClCompile Include="HostNameItem.cpp" />
     <ClCompile Include="PluginHostName.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

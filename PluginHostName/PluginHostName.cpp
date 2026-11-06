@@ -1,5 +1,6 @@
 ﻿#include "framework.h"
 #include "PluginHostName.h"
+#include "HostNameFile.h"
 
 CPluginHostName CPluginHostName::m_instance;
 
@@ -14,11 +15,37 @@ CPluginHostName& CPluginHostName::Instance()
 
 IPluginItem* CPluginHostName::GetItem(int index)
 {
+    switch (index)
+    {
+    case 0:
+        return &m_item;
+    default:
+        break;
+    }
     return nullptr;
+}
+
+void CPluginHostName::LoadHostName()
+{
+    const std::wstring path = HostNameFile::GetDataFilePath();
+    ULONGLONG stamp = 0;
+    bool stamp_valid = HostNameFile::GetFileStamp(path, stamp);
+    //文件未变化时（首次加载除外）不重复读取
+    if (m_initialized && m_stamp_valid == stamp_valid && (!stamp_valid || m_file_stamp == stamp))
+        return;
+    m_initialized = true;
+    m_file_stamp = stamp;
+    m_stamp_valid = stamp_valid;
+
+    std::wstring value = HostNameFile::ReadHostNameFromFile(path);
+    if (value.empty())      //文件不存在或内容为空时后备为系统主机名
+        value = HostNameFile::GetSystemHostName();
+    m_host_name = value;
 }
 
 void CPluginHostName::DataRequired()
 {
+    LoadHostName();
 }
 
 const wchar_t* CPluginHostName::GetInfo(PluginInfoIndex index)
@@ -46,6 +73,7 @@ const wchar_t* CPluginHostName::GetInfo(PluginInfoIndex index)
 void CPluginHostName::OnInitialize(ITrafficMonitor* pApp)
 {
     m_app = pApp;
+    LoadHostName();
 }
 
 ITMPlugin* TMPluginGetInstance()
