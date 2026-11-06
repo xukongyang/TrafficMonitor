@@ -71,6 +71,15 @@ namespace HostNameFile
                 return std::wstring();
             wide_str.assign(reinterpret_cast<const wchar_t*>(data + 2), (size - 2) / 2);
         }
+        else if (size >= 2 && data[0] == 0xFE && data[1] == 0xFF)
+        {
+            //UTF-16BE BOM（记事本"Unicode big endian"），字节交换后取出
+            if ((size - 2) % 2 != 0)
+                return std::wstring();
+            wide_str.reserve((size - 2) / 2);
+            for (size_t i = 2; i + 1 < size; i += 2)
+                wide_str.push_back(static_cast<wchar_t>((static_cast<unsigned>(data[i]) << 8) | data[i + 1]));
+        }
         else
         {
             //无BOM：先按UTF-8严格校验，非法UTF-8再按系统代码页(ANSI)处理

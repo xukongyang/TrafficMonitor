@@ -33,13 +33,17 @@ void CPluginHostName::LoadHostName()
     //文件未变化时（首次加载除外）不重复读取
     if (m_initialized && m_stamp_valid == stamp_valid && (!stamp_valid || m_file_stamp == stamp))
         return;
+
+    std::wstring value = HostNameFile::ReadHostNameFromFile(path);
+    if (value.empty())
+    {
+        if (stamp_valid)
+            return;     //文件存在但读取失败（如被其他程序临时独占）：保留旧值与旧文件标识，下一秒重试
+        value = HostNameFile::GetSystemHostName();      //文件不存在或内容为空时后备为系统主机名
+    }
     m_initialized = true;
     m_file_stamp = stamp;
     m_stamp_valid = stamp_valid;
-
-    std::wstring value = HostNameFile::ReadHostNameFromFile(path);
-    if (value.empty())      //文件不存在或内容为空时后备为系统主机名
-        value = HostNameFile::GetSystemHostName();
     m_host_name = value;
 }
 

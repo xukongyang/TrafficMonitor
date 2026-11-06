@@ -51,6 +51,11 @@ int main()
         const unsigned char data[] = { 0xFF, 0xFE, 'S', 0, 'R', 0, 'V', 0, '-', 0, '0', 0, '1', 0 };
         CHECK("utf16le_bom", HostNameFile::ParseHostNameFromBytes(data, sizeof(data)), FromUtf8("SRV-01"));
     }
+    // 用例4b: UTF-16BE BOM（记事本"Unicode big endian"）+ "BE-SRV"
+    {
+        const unsigned char data[] = { 0xFE, 0xFF, 0, 'B', 0, 'E', 0, '-', 0, 'S', 0, 'R', 0, 'V' };
+        CHECK("utf16be_bom", HostNameFile::ParseHostNameFromBytes(data, sizeof(data)), FromUtf8("BE-SRV"));
+    }
     // 用例5: 空/仅 BOM
     {
         CHECK("empty_input", HostNameFile::ParseHostNameFromBytes(nullptr, 0), std::wstring());

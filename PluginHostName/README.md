@@ -13,7 +13,7 @@ TrafficMonitor 插件：从程序运行目录的 `插件-主机名.txt` 文件�
 
 1. 选择与主程序位数一致的 dll：
    - 64 位 TrafficMonitor → `Bin\x64\Release\plugins\PluginHostName.dll`
-   - 32 位 TrafficMonitor → `Bin\x86\Release\plugins\PluginHostName.dll`
+   - 32 位 TrafficMonitor → `Bin\Release\plugins\PluginHostName.dll`（Win32 产物不带平台子目录，与 PluginDemo 一致）
 2. 将 dll 放入主程序目录下的 `plugins` 子目录（没有则新建）
 3. 位数不匹配时插件会被静默忽略，请核对 TrafficMonitor.exe 的位数
 4. 重启 TrafficMonitor，在"插件管理"中可以看到"主机名"插件
@@ -79,5 +79,5 @@ TrafficMonitor 插件：从程序运行目录的 `插件-主机名.txt` 文件�
 
 - 使用 Visual Studio 2022（v143 工具集）打开 `TrafficMonitor.sln`
 - 编译 `PluginHostName` 项目（Debug/Release × Win32/x64/ARM64EC）
-- 产物自动输出到 `Bin\<平台>\<配置>\plugins\`
+- 产物自动输出到 `Bin\x64\<配置>\plugins\`（x64/ARM64EC）与 `Bin\<配置>\plugins\`（Win32，不带平台子目录）
 - 单元测试：`cmd /c PluginHostName\tests\run_test.bat`（核心解析 11 用例 + DLL 集成 15 用例）

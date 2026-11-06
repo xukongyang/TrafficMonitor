@@ -107,6 +107,28 @@ int main(int argc, char** argv)
     CHECK_TRUE("fallback_after_delete",
         std::wstring(item->GetItemValueText()) == std::wstring(sys_name, sys_len));
 
+    //文件被其他程序瞬时独占时保持旧值，锁释放后自动恢复（OneDrive/杀毒扫描场景）
+    CHECK_TRUE("rewrite_for_lock_test", WriteFileSimple(data_file, "\xEF\xBB\xBF" "TEST-LOCK-A\n"));
+    plugin->DataRequired();
+    CHECK_TRUE("load_lock_a", std::wstring(item->GetItemValueText()) == FromUtf8("TEST-LOCK-A"));
+    {
+        //重写内容为 B（不同长度保证文件标识变化）后用独占句柄锁住文件（不允许读），
+        //模拟杀毒/同步软件瞬时锁定
+        Sleep(50);
+        CHECK_TRUE("rewrite_for_lock_b", WriteFileSimple(data_file, "\xEF\xBB\xBF" "TEST-LOCK-BB"));
+        HANDLE hLock = CreateFileW(data_file.c_str(), GENERIC_READ, 0, nullptr,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CHECK_TRUE("lock_file_opened", hLock != INVALID_HANDLE_VALUE);
+        plugin->DataRequired();
+        CHECK_TRUE("keep_old_value_while_locked",
+            std::wstring(item->GetItemValueText()) == FromUtf8("TEST-LOCK-A"));
+        if (hLock != INVALID_HANDLE_VALUE)
+            CloseHandle(hLock);
+        plugin->DataRequired();
+        CHECK_TRUE("recover_after_unlock",
+            std::wstring(item->GetItemValueText()) == FromUtf8("TEST-LOCK-BB"));
+    }
+
     FreeLibrary(dll);
     if (g_failed > 0)
     {
