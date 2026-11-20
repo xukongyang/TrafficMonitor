@@ -147,6 +147,7 @@ protected:
     bool m_taskbar_on_top_or_bottom{ true };		//如果任务栏在屏幕顶部或底部，则为ture
     int m_error_code{};
     bool m_menu_popuped{ false };               //指示当前是否有菜单处于弹出状态
+    bool m_tip_shown{ false };                  //统计信息气泡（tracking模式）是否处于显示状态
     bool m_is_secondary_display{ false };       //是否显示在副显示器中
     bool m_is_width_changed{ false };
 
@@ -194,6 +195,9 @@ public:
 
     void SetToolTipsTopMost();			//设置鼠标提示置顶
     void UpdateToolTips();
+    void ShowMouseTip(CPoint point);	//在指定位置显示统计信息气泡（tracking模式）
+    void HideMouseTip();				//隐藏统计信息气泡
+    void ToggleMouseTip(CPoint point);	//切换统计信息气泡的显示/隐藏
 
     bool GetCannotInsertToTaskBar() const { return m_connot_insert_to_task_bar; }
     int GetErrorCode() const { return m_error_code; }

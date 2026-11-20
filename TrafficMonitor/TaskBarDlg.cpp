@@ -966,6 +966,53 @@ void CTaskBarDlg::UpdateToolTips()
         tip_info = GetMouseTipsInfo();
         m_tool_tips.UpdateTipText(tip_info, this);
     }
+    else
+    {
+        HideMouseTip();     //关闭“显示鼠标提示”时收起统计信息气泡
+    }
+}
+
+void CTaskBarDlg::ShowMouseTip(CPoint point)
+{
+    if (!IsWindow(m_tool_tips.GetSafeHwnd()))
+        return;
+    //更新气泡内容为当前统计信息
+    CString tip_info = GetMouseTipsInfo();
+    m_tool_tips.UpdateTipText(tip_info, this);
+    //定位到点击点的左上方（屏幕坐标），不遮挡任务栏
+    CPoint screen_point(point);
+    ClientToScreen(&screen_point);
+    int x = screen_point.x + 8;
+    int y = screen_point.y - 160;       //160为气泡的估算高度
+    if (y < 0)
+        y = 0;
+    TOOLINFO ti{};
+    ti.hwnd = GetSafeHwnd();
+    ti.uId = (UINT_PTR)GetSafeHwnd();       //MFC AddTool 在 nIDTool=0 时以窗口句柄作为 tool 的 uId
+    if (m_tool_tips.SendMessage(TTM_TRACKACTIVATE, TRUE, (LPARAM)&ti))
+    {
+        m_tool_tips.SendMessage(TTM_TRACKPOSITION, 0, MAKELPARAM(x, y));
+        m_tip_shown = true;
+    }
+}
+
+void CTaskBarDlg::HideMouseTip()
+{
+    if (!IsWindow(m_tool_tips.GetSafeHwnd()) || !m_tip_shown)
+        return;
+    TOOLINFO ti{};
+    ti.hwnd = GetSafeHwnd();
+    ti.uId = (UINT_PTR)GetSafeHwnd();       //与 AddTool 的 uId 约定保持一致
+    m_tool_tips.SendMessage(TTM_TRACKACTIVATE, FALSE, (LPARAM)&ti);
+    m_tip_shown = false;
+}
+
+void CTaskBarDlg::ToggleMouseTip(CPoint point)
+{
+    if (m_tip_shown)
+        HideMouseTip();
+    else
+        ShowMouseTip(point);
 }
 
 bool CTaskBarDlg::IsItemShow(DisplayItem item)
@@ -1044,11 +1091,11 @@ BOOL CTaskBarDlg::OnInitDialog()
 
     SetBackgroundColor(theApp.m_taskbar_data.back_color);
 
-    //初始化鼠标提示
+    //初始化鼠标提示（tracking模式：由点击切换显示/隐藏，不随鼠标悬停/移开自动弹出关闭）
     if (IsWindow(GetSafeHwnd()) && m_tool_tips.Create(this, TTS_ALWAYSTIP) && IsWindow(m_tool_tips.GetSafeHwnd()))
     {
         m_tool_tips.SetMaxTipWidth(600);
-        m_tool_tips.AddTool(this, _T(""));
+        m_tool_tips.AddTool(this, _T(""), NULL, 0, TTF_TRACK | TTF_ABSOLUTE);
         SetToolTipsTopMost();       //设置提示信息总是置顶
     }
 
@@ -1083,7 +1130,7 @@ void CTaskBarDlg::OnRButtonUp(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     m_menu_popuped = true;
-    m_tool_tips.Pop();
+    HideMouseTip();     //弹出右键菜单时收起统计信息气泡
     ITMPlugin* plugin{};
     bool is_plugin_item_clicked = (CheckClickedItem(point) && m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr);
     if (is_plugin_item_clicked)
@@ -1177,12 +1224,7 @@ BOOL CTaskBarDlg::PreTranslateMessage(MSG* pMsg)
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE) return TRUE;
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) return TRUE;
 
-    if (theApp.m_taskbar_data.show_tool_tip && !m_menu_popuped && IsWindow(m_tool_tips.GetSafeHwnd()) && (pMsg->message == WM_LBUTTONDOWN ||
-        pMsg->message == WM_LBUTTONUP ||
-        pMsg->message == WM_MOUSEMOVE))
-    {
-        m_tool_tips.RelayEvent(pMsg);
-    }
+    //统计信息气泡已改为tracking模式（由左键点击切换显示/隐藏），不再响应鼠标悬停
 
     if (pMsg->message == WM_KEYDOWN)
     {
@@ -1252,7 +1294,7 @@ void CTaskBarDlg::OnTimer(UINT_PTR nIDEvent)
     {
         if (m_menu_popuped)     //显示了右键菜单时，不显示鼠标提示
         {
-            m_tool_tips.Pop();
+            HideMouseTip();
         }
         
         //每秒钟重新计算窗口的宽度
@@ -1456,6 +1498,12 @@ void CTaskBarDlg::OnLButtonUp(UINT nFlags, CPoint point)
                 return;
         }
     }
+
+    //左键点击切换统计信息气泡的显示/隐藏（插件未处理该点击时）
+    if (theApp.m_taskbar_data.show_tool_tip)
+        ToggleMouseTip(point);
+    else
+        HideMouseTip();
 
     CDialogEx::OnLButtonUp(nFlags, point);
 }
