@@ -19,6 +19,28 @@ jobs:
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v2
 
+    - name: Install MFC for v143
+      shell: pwsh
+      run: |
+        $installer = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe"
+        $vsPath = (& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath)
+        Write-Host "VS path: $vsPath"
+        $ids = @(
+          "Microsoft.VisualStudio.Component.VC.14.44.MFC",
+          "Microsoft.VisualStudio.Component.VC.14.43.MFC",
+          "Microsoft.VisualStudio.Component.VC.14.40.MFC",
+          "Microsoft.VisualStudio.Component.VC.14.39.MFC",
+          "Microsoft.VisualStudio.Component.VC.14.3.MFC"
+        )
+        $installed = $false
+        foreach ($id in $ids) {
+          Write-Host "trying $id"
+          $p = Start-Process -FilePath $installer -ArgumentList "modify --installPath `"$vsPath`" --add $id --quiet --norestart --nocache" -Wait -PassThru
+          Write-Host "exit code: $($p.ExitCode)"
+          if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) { $installed = $true; break }
+        }
+        if (-not $installed) { Write-Error "Failed to install MFC component with any known ID"; exit 1 }
+
     - name: Build full solution (Release x64)
       run: msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m -fl -flp:logfile=build.log
 
