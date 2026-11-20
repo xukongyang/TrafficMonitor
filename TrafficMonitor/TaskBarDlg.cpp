@@ -962,9 +962,15 @@ void CTaskBarDlg::UpdateToolTips()
 {
     if (theApp.m_taskbar_data.show_tool_tip && IsWindow(m_tool_tips.GetSafeHwnd()))
     {
-        CString tip_info;
-        tip_info = GetMouseTipsInfo();
-        m_tool_tips.UpdateTipText(tip_info, this);
+        CString tip_info = GetMouseTipsInfo();
+        //tracking工具的文本更新需用原生消息（MFC封装为TTF_IDISHWND语义，与tracking工具不匹配）
+        TOOLINFO ti{};
+        ti.cbSize = sizeof(TOOLINFO);
+        ti.hwnd = GetSafeHwnd();
+        ti.uId = 1;
+        ti.lpszText = tip_info.GetBuffer();
+        m_tool_tips.SendMessage(TTM_UPDATETIPTEXT, 0, (LPARAM)&ti);
+        tip_info.ReleaseBuffer();
     }
     else
     {
@@ -975,10 +981,18 @@ void CTaskBarDlg::UpdateToolTips()
 void CTaskBarDlg::ShowMouseTip(CPoint point)
 {
     if (!IsWindow(m_tool_tips.GetSafeHwnd()))
+    {
         return;
+    }
     //更新气泡内容为当前统计信息
     CString tip_info = GetMouseTipsInfo();
-    m_tool_tips.UpdateTipText(tip_info, this);
+    TOOLINFO ti{};
+    ti.cbSize = sizeof(TOOLINFO);
+    ti.hwnd = GetSafeHwnd();
+    ti.uId = 1;
+    ti.lpszText = tip_info.GetBuffer();
+    m_tool_tips.SendMessage(TTM_UPDATETIPTEXT, 0, (LPARAM)&ti);
+    tip_info.ReleaseBuffer();
     //定位到点击点的左上方（屏幕坐标），不遮挡任务栏
     CPoint screen_point(point);
     ClientToScreen(&screen_point);
@@ -986,10 +1000,8 @@ void CTaskBarDlg::ShowMouseTip(CPoint point)
     int y = screen_point.y - 160;       //160为气泡的估算高度
     if (y < 0)
         y = 0;
-    TOOLINFO ti{};
-    ti.hwnd = GetSafeHwnd();
-    ti.uId = (UINT_PTR)GetSafeHwnd();       //MFC AddTool 在 nIDTool=0 时以窗口句柄作为 tool 的 uId
-    if (m_tool_tips.SendMessage(TTM_TRACKACTIVATE, TRUE, (LPARAM)&ti))
+    BOOL act_ret = (BOOL)m_tool_tips.SendMessage(TTM_TRACKACTIVATE, TRUE, (LPARAM)&ti);
+    if (act_ret)
     {
         m_tool_tips.SendMessage(TTM_TRACKPOSITION, 0, MAKELPARAM(x, y));
         m_tip_shown = true;
@@ -1001,8 +1013,9 @@ void CTaskBarDlg::HideMouseTip()
     if (!IsWindow(m_tool_tips.GetSafeHwnd()) || !m_tip_shown)
         return;
     TOOLINFO ti{};
+    ti.cbSize = sizeof(TOOLINFO);
     ti.hwnd = GetSafeHwnd();
-    ti.uId = (UINT_PTR)GetSafeHwnd();       //与 AddTool 的 uId 约定保持一致
+    ti.uId = 1;
     m_tool_tips.SendMessage(TTM_TRACKACTIVATE, FALSE, (LPARAM)&ti);
     m_tip_shown = false;
 }
@@ -1095,7 +1108,15 @@ BOOL CTaskBarDlg::OnInitDialog()
     if (IsWindow(GetSafeHwnd()) && m_tool_tips.Create(this, TTS_ALWAYSTIP) && IsWindow(m_tool_tips.GetSafeHwnd()))
     {
         m_tool_tips.SetMaxTipWidth(600);
-        m_tool_tips.AddTool(this, _T(""), NULL, 0, TTF_TRACK | TTF_ABSOLUTE);
+        //MFC的AddTool只能以TTF_IDISHWND方式添加整个窗口工具且依赖RelayEvent，
+        //tracking模式需要原生消息添加：TTF_TRACK|TTF_ABSOLUTE，由程序完全控制显示位置与显隐
+        TOOLINFO ti{};
+        ti.cbSize = sizeof(TOOLINFO);
+        ti.hwnd = GetSafeHwnd();
+        ti.uFlags = TTF_TRACK | TTF_ABSOLUTE;
+        ti.uId = 1;                                 //本插件工具的自定义ID
+        ti.lpszText = (LPTSTR)_T("");               //文本随后由 TTM_UPDATETIPTEXT 更新
+        BOOL add_ret = (BOOL)m_tool_tips.SendMessage(TTM_ADDTOOL, 0, (LPARAM)&ti);
         SetToolTipsTopMost();       //设置提示信息总是置顶
     }
 

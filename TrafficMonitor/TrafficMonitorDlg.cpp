@@ -14,6 +14,7 @@
 #include "WIC.h"
 #include "SupportedRenderEnums.h"
 #include "ClassicalTaskbarDlg.h"
+#include "TrayTipWnd.h"
 #include "Win11TaskbarDlg.h"
 #include "WineTaskbarDlg.h"
 #include "TaskbarHelper.h"
@@ -653,7 +654,8 @@ void CTrafficMonitorDlg::ShowNotifyTip(const wchar_t* title, const wchar_t* mess
     }
 }
 
-void CTrafficMonitorDlg::UpdateNotifyIconTip()
+
+CString CTrafficMonitorDlg::GetNotifyIconTipText()
 {
     CString strTip;         //鼠标指向图标时显示的提示
 #ifdef _DEBUG
@@ -685,9 +687,42 @@ void CTrafficMonitorDlg::UpdateNotifyIconTip()
             strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> %"), { CCommon::LoadText(IDS_HDD_USAGE), theApp.m_hdd_usage });
     }
 
+    return strTip;
+}
+
+void CTrafficMonitorDlg::UpdateNotifyIconTip()
+{
+    CString strTip = GetNotifyIconTipText();
     CCommon::WStringCopy(m_ntIcon.szTip, 128, strTip);
     ::Shell_NotifyIcon(NIM_MODIFY, &m_ntIcon);
 
+}
+
+void CTrafficMonitorDlg::ShowTrayTip()
+{
+    CPoint icon_point;
+    //获取托盘图标的屏幕位置
+    NOTIFYICONIDENTIFIER nid{};
+    nid.cbSize = sizeof(nid);
+    nid.hWnd = GetSafeHwnd();
+    nid.uID = m_ntIcon.uID;
+    RECT icon_rect{};
+    if (SUCCEEDED(Shell_NotifyIconGetRect(&nid, &icon_rect)))
+        icon_point = CPoint((icon_rect.left + icon_rect.right) / 2, icon_rect.top);
+    else
+    {
+        CRect work_area;
+        SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
+        icon_point = CPoint(work_area.right - 40, work_area.bottom);        //获取失败时显示在屏幕右下角
+    }
+    if (m_tray_tip_wnd.Show(GetNotifyIconTipText(), icon_point))
+        m_tray_tip_shown = true;
+}
+
+void CTrafficMonitorDlg::HideTrayTip()
+{
+    m_tray_tip_wnd.Hide();
+    m_tray_tip_shown = false;
 }
 
 void CTrafficMonitorDlg::SaveHistoryTraffic()
@@ -2389,21 +2424,14 @@ afx_msg LRESULT CTrafficMonitorDlg::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 
     if (lParam == WM_LBUTTONDOWN)
     {
-        if (!theApp.m_cfg_data.m_hide_main_window)
+        //无论主窗口显示与否，左键点击托盘图标都切换统计信息气泡（不弹出主窗口）
+        if (m_tray_tip_shown)      //统计气泡显示中，点击托盘图标关闭气泡
         {
-            if (dialog_exist)       //有打开的对话框时，点击通知区图标后将焦点设置到对话框
-            {
-                ::SetForegroundWindow(handle);
-            }
-            else        //没有打开的对话框时，则显示主窗口
-            {
-                ShowWindow(SW_RESTORE);
-                theApp.m_cfg_data.m_hide_main_window = false;
-                SetForegroundWindow();
-                SetAlwaysOnTop();
-                CheckWindowPos();
-                theApp.SaveConfig();
-            }
+            HideTrayTip();
+        }
+        else        //显示统计信息气泡
+        {
+            ShowTrayTip();
         }
     }
     if (lParam == WM_RBUTTONUP)
@@ -2896,6 +2924,8 @@ afx_msg LRESULT CTrafficMonitorDlg::OnMonitorInfoUpdated(WPARAM wParam, LPARAM l
         tip_info = GetMouseTipsInfo();
         m_tool_tips.UpdateTipText(tip_info, this);
     }
+    if (m_tray_tip_shown)       //气泡显示中，更新气泡里的统计数值
+        m_tray_tip_wnd.UpdateText(GetNotifyIconTipText());
     //更新任务栏窗口鼠标提示
     if (IsTaskbarWndValid())
         m_tBarDlg->UpdateToolTips();

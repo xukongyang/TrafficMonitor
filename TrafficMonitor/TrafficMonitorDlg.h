@@ -9,6 +9,7 @@
 #include "afxwin.h"
 #include "StaticEx.h"
 #include "Common.h"
+#include "TrayTipWnd.h"
 #include "TaskBarDlg.h"
 #include "SkinDlg.h"
 #include "HistoryTrafficDlg.h"
@@ -120,6 +121,8 @@ protected:
     CHistoryTrafficFile m_history_traffic{ theApp.m_history_traffic_path }; //储存历史流量
 
     CToolTipCtrl m_tool_tips;
+    CTrayTipWnd m_tray_tip_wnd;                 //托盘图标点击弹出的统计信息气泡
+    bool m_tray_tip_shown{ false };             //统计气泡是否处于显示状态
 
     bool m_connection_change_flag{ false };     //如果执行过IniConnection()函数，该flag会置为true
     bool m_is_foreground_fullscreen{ false };   //指示前台窗口是否正在全局显示
@@ -139,6 +142,9 @@ public:
 
 protected:
     CString GetMouseTipsInfo();     //获取鼠标提示信息
+    CString GetNotifyIconTipText(); //获取通知区图标的鼠标提示文本（悬停提示与托盘气泡共用）
+    void ShowTrayTip();             //显示托盘统计信息气泡
+    void HideTrayTip();             //隐藏托盘统计信息气泡
     void SetTransparency();         //根据m_transparency的值设置窗口透明度
     void SetTransparency(int transparency);
 public:
