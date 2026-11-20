@@ -1,5 +1,7 @@
 name: Full Build
 # 构建完整版 TrafficMonitor（含硬件监控），产物提交到 ci-artifacts 分支供下载
+# 注意：runner 镜像同时装有 VS2022（带 v143 MFC）和 VS 18（无 MFC），vswhere -latest 会选 VS 18，
+# 必须显式限定 VS 2022（版本 [17.0,18.0)）
 on:
   push:
     branches:
@@ -14,35 +16,26 @@ jobs:
   x64_full_build:
     runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v2
-
-    - name: Install MFC for v143
+    - name: Setup VS 2022 MSBuild (with v143 MFC)
       shell: pwsh
       run: |
-        $installer = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe"
-        $vsPath = (& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath)
-        Write-Host "VS path: $vsPath"
-        $ids = @(
-          "Microsoft.VisualStudio.Component.VC.14.44.MFC",
-          "Microsoft.VisualStudio.Component.VC.14.43.MFC",
-          "Microsoft.VisualStudio.Component.VC.14.40.MFC",
-          "Microsoft.VisualStudio.Component.VC.14.39.MFC",
-          "Microsoft.VisualStudio.Component.VC.14.3.MFC"
-        )
-        $installed = $false
-        foreach ($id in $ids) {
-          Write-Host "trying $id"
-          $p = Start-Process -FilePath $installer -ArgumentList "modify --installPath `"$vsPath`" --add $id --quiet --norestart --nocache" -Wait -PassThru
-          Write-Host "exit code: $($p.ExitCode)"
-          if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) { $installed = $true; break }
-        }
-        if (-not $installed) { Write-Error "Failed to install MFC component with any known ID"; exit 1 }
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -version "[17.0,18.0)" -property installationPath
+        Write-Host "Using VS 2022 at: $vsPath"
+        if (-not $vsPath) { Write-Error "VS 2022 instance not found"; exit 1 }
+        $atlmfc = Get-ChildItem "$vsPath\VC\Tools\MSVC\*\atlmfc" -Directory -ErrorAction SilentlyContinue
+        Write-Host "atlmfc present: $($atlmfc.FullName)"
+        if (-not $atlmfc) { Write-Error "MFC libraries missing in VS 2022 instance"; exit 1 }
+        Add-Content $env:GITHUB_PATH "$vsPath\MSBuild\Current\Bin"
+
+    - uses: actions/checkout@v3
 
     - name: Build full solution (Release x64)
-      run: msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m -fl -flp:logfile=build.log
+      shell: pwsh
+      run: |
+        $msbuild = (Get-Command msbuild.exe).Source
+        Write-Host "msbuild: $msbuild"
+        & $msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m -fl -flp:logfile=build.log
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Push build log on failure
       if: failure()
