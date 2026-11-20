@@ -1,0 +1,52 @@
+name: Full Build
+# 构建完整版 TrafficMonitor（含硬件监控），产物提交到 ci-artifacts 分支供下载
+on:
+  push:
+    branches:
+      - 'feature/taskbar-tip-toggle'
+    paths:
+      - '.github/workflows/full-build.yml'
+      - 'TrafficMonitor/**'
+      - 'OpenHardwareMonitorApi/**'
+permissions:
+  contents: write
+jobs:
+  x64_full_build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Build full solution (Release x64)
+      run: msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrafficMonitor_full_x64_${{ github.sha }}
+        path: |
+          Bin/x64/Release/TrafficMonitor.exe
+          Bin/x64/Release/*.dll
+        retention-days: 14
+
+    - name: Push artifacts to ci-artifacts branch
+      shell: bash
+      run: |
+        git config user.name "ci-bot"
+        git config user.email "ci-bot@users.noreply.github.com"
+        mkdir -p latest
+        cp Bin/x64/Release/TrafficMonitor.exe latest/
+        cp Bin/x64/Release/*.dll latest/ 2>/dev/null || true
+        echo "build: $GITHUB_SHA  $(date -u +'%Y-%m-%d %H:%M:%S UTC')" > latest/build-info.txt
+        if git ls-remote --exit-code origin refs/heads/ci-artifacts >/dev/null 2>&1; then
+          git fetch origin ci-artifacts
+          git checkout -B ci-artifacts FETCH_HEAD
+        else
+          git checkout --orphan ci-artifacts
+        fi
+        git ls-files -z | xargs -0 rm -f || true
+        git add -A
+        git commit -m "CI artifacts for $GITHUB_SHA" || echo "no changes to artifacts"
+        git push origin ci-artifacts
