@@ -20,9 +20,30 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build full solution (Release x64)
-      run: msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m
+      run: msbuild TrafficMonitor.sln -p:configuration="Release" -p:platform=x64 -p:PlatformToolset=v143 -m -fl -flp:logfile=build.log
+
+    - name: Push build log on failure
+      if: failure()
+      shell: bash
+      run: |
+        git config user.name "ci-bot"
+        git config user.email "ci-bot@users.noreply.github.com"
+        if git ls-remote --exit-code origin refs/heads/ci-artifacts >/dev/null 2>&1; then
+          git fetch origin ci-artifacts
+          git checkout -B ci-artifacts FETCH_HEAD
+        else
+          git checkout --orphan ci-artifacts
+        fi
+        git ls-files -z | xargs -0 rm -f || true
+        mkdir -p logs
+        cp build.log logs/build.log
+        echo "build failed: $GITHUB_SHA  $(date -u +'%Y-%m-%d %H:%M:%S UTC')" > logs/build-info.txt
+        git add -A
+        git commit -m "build log for $GITHUB_SHA" || echo "no log changes"
+        git push origin ci-artifacts
 
     - name: Upload artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: TrafficMonitor_full_x64_${{ github.sha }}
@@ -32,6 +53,7 @@ jobs:
         retention-days: 14
 
     - name: Push artifacts to ci-artifacts branch
+      if: success()
       shell: bash
       run: |
         git config user.name "ci-bot"
