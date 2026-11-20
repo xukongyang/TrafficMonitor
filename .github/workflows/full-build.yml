@@ -12,7 +12,7 @@ permissions:
   contents: write
 jobs:
   x64_full_build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
     - uses: actions/checkout@v3
 
@@ -34,13 +34,14 @@ jobs:
         else
           git checkout --orphan ci-artifacts
         fi
-        git ls-files -z | xargs -0 rm -f || true
+        git rm -r -q --cached . >/dev/null 2>&1 || true
+        git clean -fdx -q -e logs -e build.log || true
         mkdir -p logs
         cp build.log logs/build.log
         echo "build failed: $GITHUB_SHA  $(date -u +'%Y-%m-%d %H:%M:%S UTC')" > logs/build-info.txt
         git add -A
         git commit -m "build log for $GITHUB_SHA" || echo "no log changes"
-        git push origin ci-artifacts
+        git push -f origin ci-artifacts
 
     - name: Upload artifact
       if: success()
@@ -68,7 +69,8 @@ jobs:
         else
           git checkout --orphan ci-artifacts
         fi
-        git ls-files -z | xargs -0 rm -f || true
+        git rm -r -q --cached . >/dev/null 2>&1 || true
+        git clean -fdx -q -e latest || true
         git add -A
         git commit -m "CI artifacts for $GITHUB_SHA" || echo "no changes to artifacts"
-        git push origin ci-artifacts
+        git push -f origin ci-artifacts
